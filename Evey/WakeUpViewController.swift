@@ -9,6 +9,7 @@
 import UIKit
 import LocalAuthentication
 class WakeUpViewController: UIViewController {
+    var mybeacon = String()
 
     @IBOutlet weak var logInBtn: UIButton!
     @IBOutlet weak var continueBtn: UIButton!
@@ -27,10 +28,10 @@ class WakeUpViewController: UIViewController {
         // Dispose of any resources that can be recreated.
     }
     
-    @IBAction func `continue`(_ sender: Any) {
+    @IBAction func continueBtnAction(_ sender: Any) {
         let context:LAContext = LAContext();
         var error:NSError?
-        var success:Bool;
+        var _:Bool;
         let reason:String = "Please authenticate using TouchID.";
         
         if (context.canEvaluatePolicy(LAPolicy.deviceOwnerAuthenticationWithBiometrics, error: &error))
@@ -42,9 +43,9 @@ class WakeUpViewController: UIViewController {
                 }
                 
                 if (success) {
-                    let SVC = self.storyboard?.instantiateViewController(withIdentifier: "DashBoardViewController") as? DashBoardViewController
-                    SVC?.nameLabel.text = self.userNameTextField.text
-                    self.present(SVC!, animated: true, completion: {
+                    let dashBoardVC = self.storyboard?.instantiateViewController(withIdentifier: "DashBoardViewController") as? DashBoardViewController
+                    dashBoardVC?.nameLabel.text = self.userNameTextField.text
+                    self.present(dashBoardVC!, animated: true, completion: {
                         
                     })
                 }
@@ -66,9 +67,10 @@ class WakeUpViewController: UIViewController {
         return alert
     }
     @IBAction func logInButton(_ sender: Any) {
+        
         let SVC = self.storyboard?.instantiateViewController(withIdentifier: "SignInViewController") as? SignInViewController
         let transition = CATransition()
-        transition.duration = 0
+        transition.duration = 0.3
         transition.type = kCATransitionPush
         transition.subtype = kCATransitionFromRight
         view.window!.layer.add(transition, forKey: kCATransition)
@@ -82,16 +84,14 @@ class WakeUpViewController: UIViewController {
         let screenWidth = self.view.frame.size.width
         let screenHeight = self.view.frame.size.height
         
-        eveyImage.frame = CGRect (x: screenWidth/6.818, y: screenHeight/2.862, width: screenWidth/1.415, height: screenHeight/5.605)
+        eveyImage.frame = CGRect (x: screenWidth/10.714, y: screenHeight/3.605, width: screenWidth/1.225, height: screenHeight/3.994)
         
-        userNameTextField.frame = CGRect(x: screenWidth/23.437, y: eveyImage.frame.origin.y+eveyImage.frame.size.height+screenHeight/7.494, width: screenWidth/1.093, height: screenHeight/11.910)
+        userNameTextField.frame = CGRect(x: screenWidth/15, y: eveyImage.frame.origin.y+eveyImage.frame.size.height+screenHeight/6.233, width: screenWidth/1.150, height: screenHeight/14.822)
 
-        continueBtn.frame = CGRect(x: screenWidth/23.437, y: userNameTextField.frame.origin.y+userNameTextField.frame.size.height+screenHeight/83.375, width: screenWidth/1.093, height: screenHeight/14.822)
+        continueBtn.frame = CGRect(x: screenWidth/15, y: userNameTextField.frame.origin.y+userNameTextField.frame.size.height+screenHeight/30.318, width: screenWidth/1.150, height: screenHeight/13.34)
 
-        logInBtn.frame = CGRect(x: screenWidth/23.437, y: continueBtn.frame.origin.y+continueBtn.frame.size.height+screenHeight/29, width: screenWidth/1.093, height: screenHeight/14.822)
+        logInBtn.frame = CGRect(x: screenWidth/15, y: continueBtn.frame.origin.y+continueBtn.frame.size.height+screenHeight/41.687, width: screenWidth/1.150, height: screenHeight/13.34)
 
-        
-        
     }
     
     

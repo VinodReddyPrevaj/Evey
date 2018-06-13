@@ -8,11 +8,15 @@
 
 import UIKit
 
-class NewPasswordViewController: UIViewController,UITextFieldDelegate{
+class NewPasswordViewController: UIViewController,UITextFieldDelegate,CAAnimationDelegate{
+    
+    // for spinning animation on Button
+    
+    var isRotating = false
+    var shouldStopRotating = false
+    
     var upArrow = UIBarButtonItem()
     var downArrow = UIBarButtonItem()
-
-    
     
     @IBOutlet weak var titleLabel: UIImageView!
     @IBOutlet weak var scrollView: UIScrollView!
@@ -25,9 +29,27 @@ class NewPasswordViewController: UIViewController,UITextFieldDelegate{
     var newPasswordFrame = CGRect()
     var verifyPasswordFrame = CGRect()
     var continueFrame = CGRect()
+    
+    var animationView = UIImageView()
+    var animationBackground = UIView()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         layOuts()
+        
+        animationBackground.frame = CGRect(x: 3, y: 3, width: continueButton.frame.width-6, height: continueButton.frame.height-6)
+        animationBackground.backgroundColor = #colorLiteral(red: 0.368627451, green: 0.7254901961, blue: 0.8862745098, alpha: 1)
+        continueButton.addSubview(animationBackground)
+        animationBackground.isHidden = true
+        
+        
+        
+        animationView.image = UIImage(named: "spinner")
+        animationView.frame = CGRect(x: 0, y: 0, width: continueButton.frame.height/2, height: continueButton.frame.height/2)
+        animationView.center = animationBackground.center
+        self.animationBackground.addSubview(animationView)
+
+        
         let keyboardDoneButtonView = UIToolbar()
         keyboardDoneButtonView.sizeToFit()
         let doneButton = UIBarButtonItem(title: "Done", style: .done, target: self, action: #selector(self.dismissKeyboard))
@@ -54,18 +76,139 @@ class NewPasswordViewController: UIViewController,UITextFieldDelegate{
 
     @IBAction func continueAction(_ sender: Any) {
         dismissKeyboard()
-        let svc = self.storyboard?.instantiateViewController(withIdentifier: "SignInViewController")as! SignInViewController
-        let transition = CATransition()
-        transition.duration = 0.3
-        transition.type = kCATransitionPush
-        transition.subtype = kCATransitionFromLeft
-        self.view.window!.layer.add(transition, forKey: kCATransition)
-        
-        self.present(svc, animated: false, completion: {
+        if (temporaryPasswordTF.text?.characters.count)! > 0 && (newPasswordTF.text?.characters.count)! > 0 && (verifyNewPasswordTF.text?.characters.count)! > 0 && isPasswordValid(newPasswordTF.text!) && newPasswordTF.text! == verifyNewPasswordTF.text!{
             
-        })
+            continueButton.setTitleColor(UIColor.clear, for: .normal)
+            animationBackground.isHidden = false
+            
+            if self.isRotating == false {
+                self.animationView.rotate360Degrees(completionDelegate: self)
+                self.isRotating = true
+            }
 
+        let url:NSURL = NSURL(string: "\(serviceConstants.url)\((UserDefaults.standard.value(forKey: "OrganizationID")!))/api/reset/user")!
+        let session = URLSession.shared
+        let request = NSMutableURLRequest (url: url as URL)
+        request.httpMethod = "POST"
+        let paramString = "temppwd=\((temporaryPasswordTF.text)!)&password=\((newPasswordTF.text)!)"
         
+        request.setValue("application/json", forHTTPHeaderField: "Content_Type")
+        
+        var dataToPassServer: Data? = paramString.data(using: String.Encoding.ascii, allowLossyConversion: true)
+        let postLength = "\(UInt((dataToPassServer?.count)!))"
+        request.setValue(postLength, forHTTPHeaderField: "Content-Length")
+        
+        request.httpBody = paramString.data(using: String.Encoding.utf8)
+        
+        let task = session.dataTask(with: request as URLRequest){ (data,response,error)in
+            if let data = data {
+                
+                let response = try! JSONSerialization.jsonObject(with: data, options: []) as! NSDictionary
+                DispatchQueue.main.async( execute: {
+                    if response.value(forKey: "success") as! Bool == true {
+                        let msg = response.value(forKey: "msg") as! String
+                        let attString = NSMutableAttributedString(string: msg)
+                        
+                        // Create the dialog
+                        let popup = PopupDialog(title: "", message: attString, buttonAlignment: .horizontal, transitionStyle: .zoomIn, gestureDismissal: false) {
+                        }
+                        
+                        // Create first button
+                        let buttonOne = DefaultButton(title: "Ok") {
+                            let loginVC = self.storyboard?.instantiateViewController(withIdentifier: "SignInViewController") as! SignInViewController
+                            
+                            let transition = CATransition()
+                            transition.duration = 0.3
+                            transition.type = kCATransitionPush
+                            transition.subtype = kCATransitionFromRight
+                            self.view.window!.layer.add(transition, forKey: kCATransition)
+                            self.animationBackground.isHidden = true
+                            self.shouldStopRotating = true
+                            self.continueButton.setTitleColor(UIColor.white, for: .normal)
+
+                            self.present(loginVC, animated: false, completion: nil)
+                        }
+                        
+                        
+                        popup.addButtons([buttonOne])
+                        // Present dialog
+                        self.present(popup, animated: true, completion: nil)
+ 
+                    }
+                    else {
+                        
+                        self.animationBackground.isHidden = true
+                        self.shouldStopRotating = true
+                        self.continueButton.setTitleColor(UIColor.white, for: .normal)
+
+                        let msg = response.value(forKey: "msg") as! String
+                        let attString = NSMutableAttributedString(string: msg)
+                        
+                        // Create the dialog
+                        let popup = PopupDialog(title: "Oops!", message: attString, buttonAlignment: .horizontal, transitionStyle: .zoomIn, gestureDismissal: false) {
+                        }
+                        
+                        // Create first button
+                        let buttonOne = DefaultButton(title: "Try Again") {
+
+                        }
+                        
+                        
+                        popup.addButtons([buttonOne])
+                        // Present dialog
+                        self.present(popup, animated: true, completion: {
+
+                        })
+                    }
+                    
+                })
+            }
+        }
+        task.resume()
+
+        }else{
+            if isPasswordValid(newPasswordTF.text!) == false {
+                let msg = "New password minimum of eight characters using a mix of letters, numbers, and symbols."
+                let attString = NSMutableAttributedString(string: msg)
+                
+                // Create the dialog
+                let popup = PopupDialog(title: "Oops!", message: attString, buttonAlignment: .horizontal, transitionStyle: .zoomIn, gestureDismissal: false) {
+                }
+                
+                // Create first button
+                let buttonOne = DefaultButton(title: "Try Again") {
+                    
+                }
+                
+                
+                popup.addButtons([buttonOne])
+                // Present dialog
+                self.present(popup, animated: true, completion: nil)
+
+            }else if newPasswordTF.text != verifyNewPasswordTF.text {
+                let msg = "Password does not match."
+                let attString = NSMutableAttributedString(string: msg)
+                
+                // Create the dialog
+                let popup = PopupDialog(title: "Oops!", message: attString, buttonAlignment: .horizontal, transitionStyle: .zoomIn, gestureDismissal: false) {
+                }
+                
+                // Create first button
+                let buttonOne = DefaultButton(title: "Try Again") {
+
+                }
+                
+                
+                popup.addButtons([buttonOne])
+                // Present dialog
+                self.present(popup, animated: true, completion: nil)
+            }
+        }
+        
+    }
+    func isPasswordValid(_ password : String) -> Bool{
+        let passwordTest = NSPredicate(format: "SELF MATCHES %@","^(?=.*[A-Za-z])(?=.*\\d)(?=.*[$@$!%*#?&])[A-Za-z\\d$@$!%*#?&]{8,}$" )
+        return passwordTest.evaluate(with: password)
     }
     func upArrowClicked(_ sender: Any) {
         if newPasswordTF.isFirstResponder {
@@ -120,13 +263,13 @@ class NewPasswordViewController: UIViewController,UITextFieldDelegate{
         
         
 
-        temporaryPasswordTF.frame = CGRect(x: screenWidth/8.152, y:self.titleLabel.frame.origin.y+self.titleLabel.frame.height+self.view.frame.size.height/2.575, width: scrollView.frame.size.width, height: self.view.frame.size.height/11.910)
+        temporaryPasswordTF.frame = CGRect(x: screenWidth/15, y:self.titleLabel.frame.origin.y+self.titleLabel.frame.height+self.view.frame.size.height/2.575, width: screenWidth/1.150, height: self.view.frame.size.height/11.910)
 
-        newPasswordTF.frame = CGRect(x: screenWidth/8.152, y: temporaryPasswordTF.frame.origin.y+temporaryPasswordTF.frame.size.height+self.view.frame.size.height/35.055, width: scrollView.frame.size.width, height: self.view.frame.size.height/11.910)
+        newPasswordTF.frame = CGRect(x: screenWidth/15, y: temporaryPasswordTF.frame.origin.y+temporaryPasswordTF.frame.size.height+self.view.frame.size.height/35.055, width: screenWidth/1.150, height: self.view.frame.size.height/11.910)
 
-        verifyNewPasswordTF.frame = CGRect(x: screenWidth/8.152, y: newPasswordTF.frame.origin.y+newPasswordTF.frame.size.height+self.view.frame.size.height/35.055, width: scrollView.frame.size.width, height: self.view.frame.size.height/11.910)
+        verifyNewPasswordTF.frame = CGRect(x: screenWidth/15, y: newPasswordTF.frame.origin.y+newPasswordTF.frame.size.height+self.view.frame.size.height/35.055, width: screenWidth/1.150, height: self.view.frame.size.height/11.910)
 
-        continueButton.frame = CGRect(x: screenWidth/8.152, y: verifyNewPasswordTF.frame.origin.y+verifyNewPasswordTF.frame.size.height+self.view.frame.size.height/35.055, width: scrollView.frame.size.width, height: self.view.frame.size.height/11.910)
+        continueButton.frame = CGRect(x: screenWidth/15, y: verifyNewPasswordTF.frame.origin.y+verifyNewPasswordTF.frame.size.height+self.view.frame.size.height/35.055, width: screenWidth/1.150, height: self.view.frame.size.height/11.910)
         
         self.view.addSubview(temporaryPasswordTF)
         self.view.addSubview(newPasswordTF)

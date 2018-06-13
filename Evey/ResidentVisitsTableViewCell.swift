@@ -9,6 +9,8 @@
 import UIKit
 
 class ResidentVisitsTableViewCell: UITableViewCell {
+    // resident name button for resident resident contact viewcontroller's resident tableview 
+    @IBOutlet weak var residentName: UIButton!
     
     @IBOutlet weak var pauseTime: UILabel!
     @IBOutlet weak var startTime: UILabel!
@@ -49,12 +51,14 @@ class ResidentVisitsTableViewCell: UITableViewCell {
     
     @IBOutlet weak var scheduleNextServiceDate: UILabel!
     
-    
-    
-    
-    
-    
-    
+    @IBOutlet weak var checkinTime: UILabel!
+    @IBOutlet weak var time: UILabel!
+    @IBOutlet weak var checkinServiceLabel: UILabel!
+    @IBOutlet weak var checkinService: UILabel!
+    @IBOutlet weak var checkinResidentName: UILabel!
+    @IBOutlet weak var checkinImage: UIImageView!
+    @IBOutlet weak var checkInTypeImage: UIImageView!
+
     override func awakeFromNib() {
         super.awakeFromNib()
         // Initialization code

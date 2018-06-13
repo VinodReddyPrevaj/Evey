@@ -8,10 +8,9 @@
 
 import UIKit
 
-class OrganizationViewController: UIViewController,UITextFieldDelegate {
+class OrganizationViewController: UIViewController,UITextFieldDelegate,CAAnimationDelegate {
     @IBOutlet weak var eveyImage: UIImageView!
     @IBOutlet weak var titleLabel: UIImageView!
-    @IBOutlet weak var scrollView: UIScrollView!
     @IBOutlet weak var continueBtn: UIButton!
     @IBOutlet weak var organizationIDTF: UITextField!
     var upArrow = UIBarButtonItem()
@@ -21,8 +20,27 @@ class OrganizationViewController: UIViewController,UITextFieldDelegate {
     var organizationIDFrame = CGRect()
     var continueFrame = CGRect()
     let flexibleSpaceWidth = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
+    
+    var animationView = UIImageView()
+    var animationBackground = UIView()
+    var isRotating = false
+    var shouldStopRotating = false
+
     override func viewDidLoad() {
         super.viewDidLoad()
+       
+        layOuts()
+        animationBackground.frame = CGRect(x: 3, y: 3, width: continueBtn.frame.width-6, height: continueBtn.frame.height-6)
+        animationBackground.backgroundColor = #colorLiteral(red: 0.368627451, green: 0.7254901961, blue: 0.8862745098, alpha: 1)
+        continueBtn.addSubview(animationBackground)
+        animationBackground.isHidden = true
+        
+        animationView.image = UIImage(named: "spinner")
+        animationView.frame = CGRect(x: 0, y: 0, width: continueBtn.frame.height/2, height: continueBtn.frame.height/2)
+        animationView.center = animationBackground.center
+        self.animationBackground.addSubview(animationView)
+        
+
         let tap = UITapGestureRecognizer(target: self, action: #selector(self.dismissKeyboard))
         view.addGestureRecognizer(tap)
         let keyboardDoneButtonView = UIToolbar()
@@ -40,11 +58,7 @@ class OrganizationViewController: UIViewController,UITextFieldDelegate {
         keyboardDoneButtonView.items = [upArrow, downArrow, flexibleSpaceWidth, doneButton]
         organizationIDTF.inputAccessoryView = keyboardDoneButtonView
         organizationIDTF.textContentType = UITextContentType("")
-
         
-        let delegate = UIApplication.shared.delegate as! AppDelegate
-        print(delegate.dt)
-        layOuts()
     }
     
     
@@ -65,6 +79,15 @@ class OrganizationViewController: UIViewController,UITextFieldDelegate {
         cancelAnimation()
         
     }
+    let ACCEPTABLE_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    
+    func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+        let cs = NSCharacterSet(charactersIn: ACCEPTABLE_CHARACTERS).inverted
+        let filtered = string.components(separatedBy: cs).joined(separator: "")
+        
+        return (string == filtered)
+    }
+
     func textFieldDidBeginEditing(_ textField: UITextField) {
         
         animation()
@@ -87,14 +110,25 @@ class OrganizationViewController: UIViewController,UITextFieldDelegate {
         continueBtnAction(self)
         return true
     }
+    
+
 
     @IBAction func continueBtnAction(_ sender: Any) {
         if (organizationIDTF.text?.characters.count)! > 0{
             cancelAnimation()
+            
+            continueBtn.setTitleColor(UIColor.clear, for: .normal)
+            animationBackground.isHidden = false
+            
+            if self.isRotating == false {
+                self.animationView.rotate360Degrees(completionDelegate: self)
+                self.isRotating = true
+            }
+
             let organizationID  = organizationIDTF.text?.replacingOccurrences(of: " ", with: "")
-            let url:NSURL = NSURL(string: "http://13.58.78.59:6060/evey/api/client/\((organizationID)!)")!
+            let url:NSURL = NSURL(string: "\(serviceConstants.url)evey/api/client/\((organizationID)!)")!
             let sessionConfig = URLSessionConfiguration.default
-           // sessionConfig.timeoutIntervalForRequest = 3.0
+            //sessionConfig.timeoutIntervalForRequest = 3.0
            // sessionConfig.timeoutIntervalForResource = 60.0
             let session = URLSession(configuration: sessionConfig)
 
@@ -102,70 +136,64 @@ class OrganizationViewController: UIViewController,UITextFieldDelegate {
             let request = NSMutableURLRequest (url: url as URL)
             let task = session.dataTask(with: request as URLRequest){ (data,response,error)in
             if let data = data {
-                let responseArray = try! JSONSerialization.jsonObject(with: data, options: []) as! [[String:String]]
-                    print(responseArray)
-                if responseArray.count > 0 {
-                    let clientDictionary =  responseArray[0]
-                    UserDefaults.standard.set("\(clientDictionary["client_key"]!)", forKey: "OrganizationID")
-                    DispatchQueue.main.async( execute: {
-                            
-                            let logInVC = self.storyboard?.instantiateViewController(withIdentifier: "SignInViewController") as! SignInViewController
-                            
-                            let transition = CATransition()
-                            transition.duration = 0
-                            transition.type = kCATransitionPush
-                            transition.subtype = kCATransitionFromRight
-                            self.view.window!.layer.add(transition, forKey: kCATransition)
-                            
-                            self.present(logInVC, animated: false, completion: nil)
-                            print(clientDictionary["client_key"]!)
-                    })
-                }else{
+                
+                let response = try! JSONSerialization.jsonObject(with: data, options: []) as! NSDictionary
+                print(response)
+                DispatchQueue.main.async( execute: {
+
+                let keys = response.allKeys as! [String]
+                if keys.contains("client_key"){
+                    UserDefaults.standard.set("\(response["client_key"]!)", forKey: "OrganizationID")
+                    
+                        let logInVC = self.storyboard?.instantiateViewController(withIdentifier: "SignInViewController") as! SignInViewController
+
+                        let transition = CATransition()
+                        transition.duration = 0.3
+                        transition.type = kCATransitionPush
+                        transition.subtype = kCATransitionFromRight
+                        self.view.window!.layer.add(transition, forKey: kCATransition)
                         
+                        self.present(logInVC, animated: false, completion: { 
+                            self.animationBackground.isHidden = true
+                            self.shouldStopRotating = true
+                            self.continueBtn.setTitleColor(UIColor.white, for: .normal)
+                        })
+  
+                }else{
+                    
+                    self.animationBackground.isHidden = true
+                    self.shouldStopRotating = true
+                    self.continueBtn.setTitleColor(UIColor.white, for: .normal)
+
                     let msg = "Your login does not match our records"
                     let attString = NSMutableAttributedString(string: msg)
                     
                     let popup = PopupDialog(title: "Oops!", message: attString, buttonAlignment: .horizontal, transitionStyle: .zoomIn, gestureDismissal: false) {
-                            print("Completed")
                     }
-                        
-                        // Create first button
+                    
+                    // Create first button
                     let buttonOne = DefaultButton(title: "Try Again") {
-                            self.organizationIDTF.text = nil
-                            
+                        self.organizationIDTF.text = nil
+                        self.animationBackground.isHidden = true
                     }
                     
                     popup.addButtons([buttonOne])
-                        // Present dialog
-                    self.present(popup, animated: true, completion: nil)
-                }
+                    // Present dialog
+                    self.present(popup, animated: true, completion: {
 
-        }
-                if let httpResponse = response as? HTTPURLResponse {
-                    if httpResponse.statusCode == 200 {
-                        // do something here...
-                        print("Internet Connection OK")
-                    }
-                    print("statusCode: \(httpResponse.statusCode)")
-                }
-        
-         //to set timeout for urlsession
-        if let error = error {
-            print(error)
-           print(error.localizedDescription)
-        }
-        //else
+                    })
 
+                }
+                    
+                })
+
+            }
                 
         }
             task.resume()
 
         }
         
-        
-        
-        
-
     }
     func layOuts(){
         let screenWidth = self.view.frame.size.width
@@ -173,14 +201,12 @@ class OrganizationViewController: UIViewController,UITextFieldDelegate {
        
         self.titleLabel.frame = CGRect(x: screenWidth/2.757, y: screenHeight/23.821, width: screenWidth/3.75, height: screenHeight/27.791)
         
-        self.scrollView.frame = CGRect(x: screenWidth/8.152, y: titleLabel.frame.origin.y+titleLabel.frame.size.height+screenHeight/3.004, width: screenWidth/1.329, height: screenHeight/1.472)
-        self.scrollView.isHidden = true
        
-        eveyImage.frame = CGRect(x: screenWidth/6.696, y: titleLabel.frame.origin.y+titleLabel.frame.size.height+screenHeight/3.004, width: screenWidth/1.425, height: screenHeight/5.605)
+        eveyImage.frame = CGRect(x: screenWidth/10.714, y: titleLabel.frame.origin.y+titleLabel.frame.size.height+screenHeight/5.015, width: screenWidth/1.225, height: screenHeight/3.994)
         
-        organizationIDTF.frame = CGRect(x: screenWidth/8.152, y: eveyImage.frame.origin.y+eveyImage.frame.size.height+screenHeight/10.106, width: screenWidth/1.329, height: screenHeight/11.910)
+        organizationIDTF.frame = CGRect(x: screenWidth/15, y: eveyImage.frame.origin.y+eveyImage.frame.size.height+screenHeight/6.175, width: screenWidth/1.150, height: screenHeight/11.910)
 
-        continueBtn.frame = CGRect(x: screenWidth/8.152, y: organizationIDTF.frame.origin.y+organizationIDTF.frame.size.height+screenHeight/37.055, width: scrollView.frame.size.width, height: screenHeight/11.910)
+        continueBtn.frame = CGRect(x: screenWidth/15, y: organizationIDTF.frame.origin.y+organizationIDTF.frame.size.height+screenHeight/37.055, width: screenWidth/1.150, height: screenHeight/11.910)
         
         self.view.addSubview(eveyImage)
         self.view.addSubview(organizationIDTF)

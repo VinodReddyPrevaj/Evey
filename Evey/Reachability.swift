@@ -8,7 +8,7 @@
 
 import Foundation
 import SystemConfiguration
-
+import AVFoundation
 public class Reachability {
     
     class func isConnectedToNetwork() -> Bool {
@@ -34,4 +34,7 @@ public class Reachability {
         return isReachable && !needsConnection
         
 }
+    
+
 }
+

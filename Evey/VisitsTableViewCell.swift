@@ -30,8 +30,6 @@ class VisitsTableViewCell: UITableViewCell {
     
     @IBOutlet weak var residentNameLbl: UILabel!
     
-    
-    
     //reuse
     @IBOutlet weak var arrow1: UIButton!
     
@@ -45,7 +43,6 @@ class VisitsTableViewCell: UITableViewCell {
     
     // reuse value's Labels
     
-    
     @IBOutlet weak var startDateLbl: UILabel!
     
     @IBOutlet weak var endDateLbl: UILabel!
@@ -54,11 +51,7 @@ class VisitsTableViewCell: UITableViewCell {
     
     @IBOutlet weak var nextServiceTiemLbl: UILabel!
     
-    
     @IBOutlet weak var residentNameLbl1: UILabel!
-    
-    
-    
     
     // reuseIdentifier
     
@@ -69,24 +62,13 @@ class VisitsTableViewCell: UITableViewCell {
     @IBOutlet weak var serviceLabel: UILabel!
     @IBOutlet weak var serviceImage: UIImageView!
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    @IBOutlet weak var checkinTime: UILabel!
+    @IBOutlet weak var time: UILabel!
+    @IBOutlet weak var checkinServiceLabel: UILabel!
+    @IBOutlet weak var checkinService: UILabel!
+    @IBOutlet weak var checkinResidentName: UILabel!
+    @IBOutlet weak var checkinImage: UIImageView!
+    @IBOutlet weak var checkInTypeImage: UIImageView!
     override func awakeFromNib() {
         super.awakeFromNib()
         // Initialization code

@@ -43,8 +43,11 @@ class TermsAndConditionsHomeViewController: UIViewController ,UIAlertViewDelegat
     
     @IBOutlet weak var textView: UITextView!
     
+    var counter:Int = 4507
     
-    
+    var timer: Timer?
+
+    var timeLabel = UILabel()
     override func viewDidLoad() {
         super.viewDidLoad()
         layOuts()
@@ -87,9 +90,6 @@ class TermsAndConditionsHomeViewController: UIViewController ,UIAlertViewDelegat
         transition.subtype = kCATransitionFromRight
         view.window!.layer.add(transition, forKey: kCATransition)
         present(TACVC!, animated: false, completion: nil)
-        
-        
-    
 
     }
 
@@ -119,6 +119,8 @@ class TermsAndConditionsHomeViewController: UIViewController ,UIAlertViewDelegat
 
 
         let popup = PopupDialog(title: "Terms and Conditions", message:attString, buttonAlignment: .horizontal, transitionStyle: .zoomIn, gestureDismissal: false) {
+            
+            
         }
         
         // Create first button
@@ -132,7 +134,7 @@ class TermsAndConditionsHomeViewController: UIViewController ,UIAlertViewDelegat
             svc.modalTransitionStyle = UIModalTransitionStyle.partialCurl
             
             let transition = CATransition()
-            transition.duration = 0.5
+            transition.duration = 0.3
             transition.timingFunction = CAMediaTimingFunction(name: kCAMediaTimingFunctionEaseInEaseOut)
             transition.type = kCATransitionMoveIn
             transition.subtype = kCATransitionFromRight
@@ -148,24 +150,61 @@ class TermsAndConditionsHomeViewController: UIViewController ,UIAlertViewDelegat
     
     @IBAction func disagreeAction(_ sender: Any) {
         // Create the dialog
-        let msg = "You must agree to the Terms and Conditions to use this application"
-        let attString = NSMutableAttributedString(string: msg)
 
-        
-        
+        let alert = UIAlertController(title: "Time", message: "\n\n\n", preferredStyle: .alert)
 
-        let popup = PopupDialog(title: "", message: attString, buttonAlignment: .horizontal, transitionStyle: .zoomIn, gestureDismissal: false) {
-        }
-        
-        // Create first button
-        let buttonOne = DefaultButton(title: "OK") {
-        }
-        popup.addButtons([buttonOne])
-        self.present(popup, animated: true, completion: nil)
+        timeLabel = UILabel(frame: CGRect(x: 0, y: 50, width: 260, height: 50))
+
+        timeLabel.textAlignment = .center
+
+        let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true, block: {(_ timer: Timer) -> Void in
+        self.timeLabel.text = Date().description
+   
+        })
+
+        alert.view.addSubview(timeLabel)
+
+        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: {(_ action: UIAlertAction) -> Void in
+            timer.invalidate()
+
+        }))
+present(alert, animated: true) {() -> Void in }
+//        let msg = "You must agree to the Terms and Conditions to use this application"
+//        let attString = NSMutableAttributedString(string: msg)
+//
+//        
+//        
+//
+//        let popup = PopupDialog(title: "", message: attString, buttonAlignment: .horizontal, transitionStyle: .zoomIn, gestureDismissal: false) {
+//        }
+//        // Create first button
+//        let buttonOne = DefaultButton(title: "OK") {
+//        }
+//        popup.addButtons([buttonOne])
+//        self.present(popup, animated: true, completion: nil)
         
         
 
     }
+//    func decrease()
+//    {
+//        var minutes: Int
+//        var seconds: Int
+//        var hours:Int
+//        if(counter >= 0) {
+//            self.counter += 1
+//            print(counter)  // Correct value in console
+//            hours = (counter / 60) / 60
+//            minutes = (counter % 3600) / 60
+//            seconds = (counter % 3600) % 60
+//            timeLabel.text = String(format: "%02d:%02d:%02d", hours,minutes, seconds)
+//            print("\(minutes):\(seconds)")
+//        }
+//        else{
+//            timer!.invalidate()
+//        }
+//    }
+
     func layOuts(){
         let screenWidth = self.view.frame.size.width
         let screenHeight = self.view.frame.size.height
@@ -212,8 +251,6 @@ class TermsAndConditionsHomeViewController: UIViewController ,UIAlertViewDelegat
         disAgreeBtn.frame = CGRect(x: screenWidth/15, y: buttonsView.frame.height/4.818, width: screenWidth/5.281, height: buttonsView.frame.height/1.766)
         
         agreeBtn.frame = CGRect(x: disAgreeBtn.frame.origin.x+disAgreeBtn.frame.width+screenWidth/1.963, y: buttonsView.frame.height/4.818, width: screenWidth/7.075, height: buttonsView.frame.height/1.766)
-        
-        
         
     }
 

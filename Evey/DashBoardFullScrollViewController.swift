@@ -330,7 +330,7 @@ class DashBoardFullScrollViewController: UIViewController,UITableViewDelegate,UI
     @IBAction func menuBtnAction(_ sender: Any) {
         let menuViewController = self.storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
         let transition = CATransition()
-        transition.duration = 0
+        transition.duration = 0.3
         transition.type = kCATransitionPush
         transition.subtype = kCATransitionFromRight
         view.window!.layer.add(transition, forKey: kCATransition)

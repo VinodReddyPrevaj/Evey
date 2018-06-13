@@ -9,6 +9,7 @@
 //
 
 import UIKit
+import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -20,57 +21,74 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
         UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
         UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-        UserDefaults.standard.set([], forKey: "NamesArray")
         UserDefaults.standard.set([], forKey: "CaresArray")
-        UserDefaults.standard.set([], forKey: "SelectedArray")
         UserDefaults.standard.set("", forKey: "Came From")
-        UserDefaults.standard.set("Top", forKey: "Reddy")
         UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
         UserDefaults.standard.set("true", forKey: "Status")
 
-        Thread.sleep(forTimeInterval: 1.0)
-//        window = UIWindow(frame: UIScreen.main.bounds)
-//        let credentials: UserDefaults? = UserDefaults.standard
-//        if !(credentials?.bool(forKey: "checking") ?? false) {
-//            let storyboard = UIStoryboard(name: "Main", bundle: nil)
-//            let viewController: UIViewController? = storyboard.instantiateViewController(withIdentifier: "TermsAndConditionsHomeViewController")
-//            window?.rootViewController = viewController
-//        }
-//        else {
-//            let storyboard = UIStoryboard(name: "Main", bundle: nil)
-//            let viewController: UIViewController? = storyboard.instantiateViewController(withIdentifier: "WakeUpViewController")
-//            window?.rootViewController = viewController
-//        }
+        Thread.sleep(forTimeInterval: 3.0)
+        window = UIWindow(frame: UIScreen.main.bounds)
+        let credentials: UserDefaults? = UserDefaults.standard
+        if !(credentials?.bool(forKey: "checking") ?? false) {
+            let storyboard = UIStoryboard(name: "Main", bundle: nil)
+            let viewController: UIViewController? = storyboard.instantiateViewController(withIdentifier: "TermsAndConditionsHomeViewController")
+            window?.rootViewController = viewController
+        }
+        else {
+            let storyboard = UIStoryboard(name: "Main", bundle: nil)
+            let viewController: UIViewController? = storyboard.instantiateViewController(withIdentifier: "WakeUpViewController") 
+            window?.rootViewController = viewController
+        }
         
         let touchposeApplication = application as? QTouchposeApplication
         touchposeApplication?.alwaysShowTouches = true
         touchposeApplication?.customTouchImage = UIImage(named: "icon6")
         touchposeApplication?.customTouchPoint = CGPoint(x: 20, y: 20)
-//        if Float(UIDevice.current.systemVersion) ?? 0.0 >= 8.0 {
-//            UIApplication.shared.registerUserNotificationSettings(UIUserNotificationSettings(types: [.sound, .alert, .badge], categories: nil))
-//        }
-//        else {
-//            UIApplication.shared.registerForRemoteNotifications(matching: [.badge, .sound, .alert])
-//        }
+      
+        // iOS 10 support
+        if #available(iOS 10, *) {
+            UNUserNotificationCenter.current().requestAuthorization(options:[.badge, .alert, .sound]){ (granted, error) in }
+            application.registerForRemoteNotifications()
+        }
+            // iOS 9 support
+        else if #available(iOS 9, *) {
+            UIApplication.shared.registerUserNotificationSettings(UIUserNotificationSettings(types: [.badge, .sound, .alert], categories: nil))
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+            // iOS 8 support
+        else if #available(iOS 8, *) {
+            UIApplication.shared.registerUserNotificationSettings(UIUserNotificationSettings(types: [.badge, .sound, .alert], categories: nil))
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+            // iOS 7 support
+        else {  
+            application.registerForRemoteNotifications(matching: [.badge, .sound, .alert])
+        }
         return true
     }
-//    func application(_ application: UIApplication, didRegister notificationSettings: UIUserNotificationSettings) {
-//        application.registerForRemoteNotifications()
-//    }
-//    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-//        print("My token \(deviceToken)")
-//        var device: String = deviceToken.description
-//        device = device.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
-//        device = device.replacingOccurrences(of: " ", with: "")
-//        dt = device
-//        print("device \(device)")
-//
-//    }
-//    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-//        let str = "\(error)"
-//        print("Notification Error is \(str)")
-//
-//    }
+    func application(_ application: UIApplication, didRegister notificationSettings: UIUserNotificationSettings) {
+        application.registerForRemoteNotifications()
+    }
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        
+        let deviceTokenString = deviceToken.reduce("", {$0 + String(format: "%02X", $1)})
+        
+        // Print it to console
+        print("APNs device token: \(deviceTokenString)")
+
+        print("My token \(deviceToken)")
+        var device: String = deviceToken.description
+        device = device.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
+        device = device.replacingOccurrences(of: " ", with: "")
+        dt = device
+        print("device \(device)")
+
+    }
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        let str = "\(error)"
+        print("Notification Error is \(str)")
+
+    }
     
 
     func applicationWillResignActive(_ application: UIApplication) {
@@ -93,6 +111,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationWillTerminate(_ application: UIApplication) {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+
     }
 
 

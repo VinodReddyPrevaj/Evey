@@ -10,8 +10,8 @@ import UIKit
 
 class ContactsTableViewCell: UITableViewCell {
 
-    @IBOutlet weak var typeOfContactsLbl: UILabel!
     @IBOutlet weak var forwardArrowBtn: UIButton!
+    @IBOutlet weak var contactType: UIButton!
     override func awakeFromNib() {
         super.awakeFromNib()
         // Initialization code

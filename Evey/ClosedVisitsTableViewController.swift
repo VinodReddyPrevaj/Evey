@@ -8,20 +8,30 @@
 
 import UIKit
 import CoreLocation
+import AudioToolbox
+import AVFoundation
 class ClosedVisitsTableViewController: UITableViewController,CLLocationManagerDelegate {
     //for beacon Detection
     var acceptableDistance = Double()
-    var rssiArray = [0]
     
     let locationManager = CLLocationManager()
     let region = CLBeaconRegion(proximityUUID: UUID(uuidString: "7878062c-1308-4ad0-9169-ec6f31c86bfa")!, identifier: "TestOne")
     
     var popup = PopupDialog(title: "", message: NSAttributedString(), buttonAlignment: .vertical, transitionStyle: .zoomIn, gestureDismissal: false, completion: nil)
 
+    var beaconsArray = NSArray()
+    var responseBeacon = NSDictionary()
+    var timer: Timer?
+
+    var audioPlayer = AVAudioPlayer()
+    
+    let roomUrl = Bundle.main.url(forResource: "Room", withExtension: "mp3")
+    let hallwayUrl = Bundle.main.url(forResource: "Hallway", withExtension:"mp3")
+
     override func viewDidLoad() {
         super.viewDidLoad()
         // to detect beacons
-        
+
         locationManager.delegate=self
         if (CLLocationManager.authorizationStatus() != CLAuthorizationStatus.authorizedWhenInUse) {
             locationManager.requestWhenInUseAuthorization()
@@ -29,12 +39,22 @@ class ClosedVisitsTableViewController: UITableViewController,CLLocationManagerDe
         locationManager.startRangingBeacons(in: region)
         locationManager.startMonitoring(for: region)
         acceptableDistance = 2.0
-        rssiArray.removeAll()
 
         let msg = "Are you finished with your visit or are you continuing care?"
         let attString = NSMutableAttributedString(string: msg)
         popup = PopupDialog(title: "", message: attString, buttonAlignment: .vertical, transitionStyle: .zoomIn, gestureDismissal: false, completion: nil)
+        tableView.tableFooterView = UIView(frame: .zero)
         
+        if Constants.recentClosedVisits.count == 0 {
+            let label = UILabel()
+            label.text = "No visits"
+            label.textColor = UIColor.gray
+            label.frame = CGRect(x: 0, y: self.view.frame.height/3, width: self.view.frame.width, height: 21)
+            label.textAlignment = .center
+            label.backgroundColor = UIColor.white
+            tableView.addSubview(label)
+        }
+
 
     }
 
@@ -56,7 +76,7 @@ class ClosedVisitsTableViewController: UITableViewController,CLLocationManagerDe
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         // #warning Incomplete implementation, return the number of rows
-        return 2
+        return Constants.recentClosedVisits.count
     }
     override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
 
@@ -68,22 +88,110 @@ class ClosedVisitsTableViewController: UITableViewController,CLLocationManagerDe
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         var cell = ClosedVisitsTableViewCell()
          cell = tableView.dequeueReusableCell(withIdentifier: "reuseIdentifier", for: indexPath) as! ClosedVisitsTableViewCell
-        if indexPath.row == 0 {
-            cell.closedVisitImage.image = UIImage(named: "scheduledPerformedVisitIcon")
-            cell.residentNameLbl.text = "Edward J.310"
-            cell.serviceImage.image = UIImage(named: "Bathing")
-            cell.serviceName.text = "Bathing"
-            cell.startTimeLbl.text = "9:15 AM"
-            cell.endTimeLbl.text = "9:45 AM"
+        var resident = NSDictionary()
+        
+        resident = Constants.recentClosedVisits[indexPath.row] as! NSDictionary
+        
+        let residentDetails = resident.value(forKey: "resident") as! NSDictionary
+        let residentRoom = resident.value(forKey: "room") as! NSDictionary
+        let _name = "\(residentDetails.value(forKey: "first_name") as! String) \(residentDetails.value(forKey: "last_name") as! String).\(residentRoom.value(forKey: "room") as! String)"
+        
+        let care = resident.value(forKey: "care") as! NSDictionary
+        
+        let _care = care.value(forKey: "name") as! String
+        
+        let careType = resident.value(forKey: "care_type") as! String
+        
+        var _typeImage = String()
+        if careType == "Track" {
+            _typeImage = "performedVisitIcon"
             
+        }else if careType == "Schedule" {
             
+            _typeImage = "scheduledPerformedVisitIcon"
+            
+        }
+        
+        let timeTrack = resident.value(forKey: "total_time") as! NSDictionary
+        
+        
+        let startTime = timeTrack.value(forKey: "start") as! String
+        
+        let endTime = timeTrack.value(forKey: "end") as! String
+        
+        
+        let dateformatter = DateFormatter()
+        dateformatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SZ"
+        
+        let startDate = dateformatter.date(from: startTime)
+        
+        let endDate = dateformatter.date(from: endTime)
+        
+        let calendar = Calendar.current
+        
+        
+        
+        cell.residentNameLbl.text = _name
+        cell.closedVisitImage.image = UIImage(named: _typeImage)
+        cell.serviceImage.image = UIImage(named: _care)
+        cell.serviceName.text = _care
+        
+        if calendar.component(.minute, from: startDate!) < 10 {
+            let hours = calendar.component(.hour, from: startDate!)
+            if hours > 12 {
+                cell.startTimeLbl.text = "\(calendar.component(.hour, from: startDate!) - 12):0\(calendar.component(.minute, from: startDate!)) PM"
+            }else if hours == 12{
+                
+                cell.startTimeLbl.text = "\(calendar.component(.hour, from: startDate!)):0\(calendar.component(.minute, from: startDate!)) PM"
+                
+            }else{
+                cell.startTimeLbl.text = "\(calendar.component(.hour, from: startDate!)):0\(calendar.component(.minute, from: startDate!)) AM"
+                
+                
+            }
         }else{
-            cell.closedVisitImage.image = UIImage(named: "performedVisitIcon")
-            cell.residentNameLbl.text = "Chris P.310"
-            cell.serviceImage.image = UIImage(named: "Escort")
-            cell.serviceName.text = "Escort"
-            cell.startTimeLbl.text = "3:35 PM"
-            cell.endTimeLbl.text = "4:25 PM"
+            let hours = calendar.component(.hour, from: startDate!)
+            if hours > 12 {
+                
+                cell.startTimeLbl.text = "\(calendar.component(.hour, from: startDate!) - 12):\(calendar.component(.minute, from: startDate!)) PM"
+                
+            }else if hours == 12 {
+                cell.startTimeLbl.text = "\(calendar.component(.hour, from: startDate!)):\(calendar.component(.minute, from: startDate!)) PM"
+                
+            }else{
+                cell.startTimeLbl.text = "\(calendar.component(.hour, from: startDate!)):\(calendar.component(.minute, from: startDate!)) AM"
+                
+            }
+            
+        }
+        if calendar.component(.minute, from: endDate!) < 10 {
+            let hours = calendar.component(.hour, from: endDate!)
+            
+            if hours > 12 {
+                cell.endTimeLbl.text = "\(calendar.component(.hour, from: endDate!) - 12):0\(calendar.component(.minute, from: endDate!)) PM"
+            }else if hours == 12 {
+                cell.endTimeLbl.text = "\(calendar.component(.hour, from: endDate!)):0\(calendar.component(.minute, from: endDate!)) PM"
+                
+            }else {
+                cell.endTimeLbl.text = "\(calendar.component(.hour, from: endDate!)):0\(calendar.component(.minute, from: endDate!)) AM"
+                
+                
+            }
+        }else{
+            let hours = calendar.component(.hour, from: endDate!)
+            
+            if hours > 12 {
+                
+                cell.endTimeLbl.text = "\(calendar.component(.hour, from: endDate!) - 12):\(calendar.component(.minute, from: endDate!)) PM"
+                
+            }else if hours == 12 {
+                
+                cell.endTimeLbl.text = "\(calendar.component(.hour, from: endDate!)):\(calendar.component(.minute, from: endDate!)) PM"
+                
+            }else{
+                cell.endTimeLbl.text = "\(calendar.component(.hour, from: endDate!)):\(calendar.component(.minute, from: endDate!)) AM"
+                
+            }
             
         }
 
@@ -93,7 +201,7 @@ class ClosedVisitsTableViewController: UITableViewController,CLLocationManagerDe
         let cellWidth =  cell.contentView.frame.width
         let cellHeight = cell.contentView.frame.height
         
-        cell.closedVisitImage.frame = CGRect(x: cellWidth/31.25, y: cellHeight/4.818, width: cellWidth/18.75, height: cellHeight/5.3)
+        cell.closedVisitImage.frame = CGRect(x: cellWidth/31.25, y: cellHeight/4.057, width: cellWidth/25, height: cellWidth/25)
         
         cell.residentNameLbl.frame = CGRect(x: cell.closedVisitImage.frame.origin.x+cell.closedVisitImage.frame.width+cellWidth/46.875, y: cellHeight/9.636, width: cellWidth/2.049, height: cellHeight/2.465)
         
@@ -132,7 +240,7 @@ class ClosedVisitsTableViewController: UITableViewController,CLLocationManagerDe
         let CSVC = self.storyboard?.instantiateViewController(withIdentifier: "CareSelectViewController") as! CareSelectViewController
         
         let transition = CATransition()
-        transition.duration = 0
+        transition.duration = 0.3
         transition.type = kCATransitionPush
         transition.subtype = kCATransitionFromRight
         view.window!.layer.add(transition, forKey: kCATransition)
@@ -184,215 +292,729 @@ class ClosedVisitsTableViewController: UITableViewController,CLLocationManagerDe
     func locationManager(_ manager: CLLocationManager, didRangeBeacons beacons: [CLBeacon], in region: CLBeaconRegion) {
         let knownBeacons = beacons.filter{$0.proximity != CLProximity.unknown}
         if (knownBeacons.count>0) {
-            let closeBeacon = knownBeacons[0] as CLBeacon
-            var maj =  Int()
-            maj =  8
-            let previousBeaconArray : [Int] = UserDefaults.standard.value(forKey: "PreviousBeaconArray") as! [Int]
-            if previousBeaconArray.count == 0 {
-                if closeBeacon.major.intValue == maj {
-                }else{
-                    rssiArray.append(closeBeacon.rssi)
-                    if rssiArray.count == 1 {
-                        let sumedrssi = rssiArray.reduce(0, +)
-                        let processedrssi = sumedrssi/1
-                        let base = Double(10)
-                        let power = Double(-57-(processedrssi))/Double(10*2)
-                        let dis = pow(Double(base), power)
-                        print("\(closeBeacon.major.intValue)")
-                        print("\(closeBeacon.rssi)")
-                        print("accuracy \(closeBeacon.accuracy)")
-                        print(dis)
-                        rssiArray.removeAll()
-                        //if closeBeacon.accuracy <= 4.0 {
-                        if dis <= 4.0{
-                            UserDefaults.standard.set([closeBeacon.major.intValue], forKey: "PreviousBeaconArray")
-                            
-                            popup.dismiss(animated: true, completion: {
-                                UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-                                
-                            })
-                            locationManager.stopRangingBeacons(in: region)
-                            locationManager.stopMonitoring(for: region)
-                            let nvc = self.storyboard?.instantiateViewController(withIdentifier: "ResidentSelectTestViewController") as! ResidentSelectTestViewController
-                            self .present(nvc, animated: true, completion: {
-                                UserDefaults.standard.set([], forKey: "SelectedArray")
-                                UserDefaults.standard.set("", forKey: "Came From")
+            let array = ["major": (knownBeacons[0]).major.stringValue ,"minor": (knownBeacons[0]).minor.stringValue,"rssi":(knownBeacons[0]).rssi] as [String : Any]
+            
+            Constants.nearBeacon = ["major":(knownBeacons[0]).major.intValue,"minor":(knownBeacons[0]).minor.intValue]
 
-                            })
-                        }
+            Constants.rssiArray.add(array)
+            if Constants.rssiArray.count == 1 {
+                print(Constants.rssiArray)
+                
+                var Counting : [NSDictionary : Int] = [:]
+                for items in Constants.rssiArray {
+                    
+                    let val = items as! [String:Any]
+                    let storeValues = ["major":val["major"]!,"minor":val["minor"]!] as NSDictionary
+                    Counting[storeValues] = (Counting[storeValues] ?? 0) + 1
+                    
+                }
+                
+                let heighRepeat = Counting.max { a, b in a.value < b.value }
+                print("heigh \((heighRepeat)!))")
+                var totalRSSIArray = [Int]()
+                let dic = heighRepeat?.key
+                for element in Constants.rssiArray {
+                    let val = element as! [String:Any]
+                    let compareString = "\(val["major"]!) \(val["minor"]!)"
+                    let otherString = "\(dic?.value(forKey: "major") as! String) \(dic?.value(forKey: "minor") as! String)"
+                    if compareString == otherString {
+                        totalRSSIArray.append(val["rssi"]! as! Int)
                     }
+                }
+                print(totalRSSIArray)
+                let sum = totalRSSIArray.reduce(0, +)
+                let finalRSSI : Double = Double(Double(sum)/Double((heighRepeat?.value)!))
+                
+
+                let previousBeaconArray : [String] = UserDefaults.standard.value(forKey: "PreviousBeaconArray") as! [String]
+            if previousBeaconArray.count == 0 {
+                print("final \(finalRSSI)")
+                let base = Double(10)
+                let power = Double(Constants.roomRSSI-(finalRSSI))/Double(10*2)
+                let dis = pow(Double(base), power)
+                print(dis)
+
+                       if dis <= Constants.roomRange {
+                            
+                            let beaconsData = UserDefaults.standard.object(forKey: "Beacons_List") as? NSData
+                            
+                            if let beaconsData = beaconsData {
+                                beaconsArray = (NSKeyedUnarchiver.unarchiveObject(with: beaconsData as Data) as? NSArray)!
+                            }
+                            var myBeacon = String()
+                            
+                            for i in 0..<beaconsArray.count {
+                                
+                                let aaaaaaa = beaconsArray[i] as! NSDictionary
+                                
+                                let beaconMajor = Int(dic?.value(forKey: "major") as! String)
+                                
+                                let beaconMinor = Int(dic?.value(forKey: "minor") as! String)
+
+                                let majorStr = aaaaaaa.value(forKey: "major") as! String
+                                
+                                let major = Int(majorStr)
+                                
+                                let minorStr = aaaaaaa.value(forKey: "minor") as! String
+                                
+                                let minor = Int(minorStr)
+                                
+                                
+                                if major == beaconMajor && minor == beaconMinor{
+                                    myBeacon = aaaaaaa.value(forKey: "type") as! String
+                                    responseBeacon = aaaaaaa
+                                    
+                                    
+                                }
+                            }
+                            
+                        if myBeacon == "room"{
+                            Service.sharedInstance.batteryLevel(beaconsWithBattery: Constants.beaconsWithPercentages)
+
+                            if Times.Left_Time.count > 0{
+                                
+                                locationManager.stopRangingBeacons(in: region)
+                                locationManager.stopMonitoring(for: region)
+
+                                
+                                let user_Id = UserDefaults.standard.value(forKey: "user_Id") as! String
+                                
+                                let residentRoom = ResidentDetails.response.value(forKey: "_room") as! NSDictionary
+                                
+                                let roomId = residentRoom.value(forKey: "_id") as! String
+                                
+                                var startedTime = Date()
+                                
+                                if Times.Previous_End_Time.count > 0 {
+                                    startedTime = Times.Previous_End_Time[0]
+                                }else{
+                                    startedTime = Times.Constant_Start_Time
+                                }
+                                let previousBeaconArray : [String] = UserDefaults.standard.value(forKey: "PreviousBeaconArray") as! [String]
+                                var endTime = Date()
+                                
+                                if previousBeaconArray.count == 0 {
+                                    endTime = Times.Leaving_Time
+                                }
+                                var param = [String:Any]()
+                                param = ["user_id": user_Id,
+                                         "room_id": roomId,
+                                         "resident_id": "",
+                                         "care_id": "",
+                                         "care_value": "",
+                                         "care_notes": "",
+                                         "care_type": "UnTrack",
+                                         "care_status": "Closed",
+                                         "time_track": ["start_time":"\(startedTime)",
+                                            "end_time":"\(endTime)"]
+                                    
+                                ]
+                                
+                                let parameters = [param]
+                                
+                                //create the url with URL
+                                let url = URL(string: "\(serviceConstants.url)\((UserDefaults.standard.value(forKey: "OrganizationID")!))/api/\(serviceConstants.trackCares)")! //change the url
+                                
+                                //create the session object
+                                let session = URLSession.shared
+                                
+                                //now create the URLRequest object using the url object
+                                var request = URLRequest(url: url)
+                                request.httpMethod = "POST" //set http method as POST
+                                
+                                do {
+                                    request.httpBody = try JSONSerialization.data(withJSONObject: parameters, options: .prettyPrinted) // pass dictionary to nsdata object and set it as request body
+                                } catch let error {
+                                    print(error.localizedDescription)
+                                }
+                                
+                                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+                                request.setValue(UserDefaults.standard.value(forKey: "authorization_Token") as? String, forHTTPHeaderField: serviceConstants.authorization)
+                                
+                                //create dataTask using the session object to send data to the server
+                                let task = session.dataTask(with: request as URLRequest, completionHandler: { data, response, error in
+                                    
+                                    guard error == nil else {
+                                        return
+                                    }
+                                    guard let data = data else {
+                                        return
+                                    }
+                                    
+                                    do {
+                                        //create json object from data
+                                        _ = try! JSONSerialization.jsonObject(with: data, options: [])
+                                        
+                                        Times.Previous_End_Time.removeAll()
+                                        
+                                        UserDefaults.standard.set([self.responseBeacon.value(forKey: "_id")], forKey: "PreviousBeaconArray")
+                                        
+                                        self.popup.dismiss(animated: true, completion: {
+                                            UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
+                                            self.timer?.invalidate()
+                                        })// comletion of popup
+                                        
+                                        self.locationManager.stopRangingBeacons(in: region)
+                                        self.locationManager.stopMonitoring(for: region)
+                                        
+                                        let url:NSURL = NSURL(string: "\(serviceConstants.url)\((UserDefaults.standard.value(forKey: "OrganizationID")!))/api/beacons/\(self.responseBeacon.value(forKey: "_id")!)")!
+                                        
+                                        let session = URLSession.shared
+                                        let request = NSMutableURLRequest (url: url as URL)
+                                        request.httpMethod = "Get"
+                                        
+                                        request.setValue(UserDefaults.standard.value(forKey: "authorization_Token") as? String, forHTTPHeaderField: serviceConstants.authorization)
+                                        
+                                        let task = session.dataTask(with: request as URLRequest){ (data,response,error)in
+                                            if let data = data {
+                                                
+                                                let re = try! JSONSerialization.jsonObject(with: data, options: []) as! NSDictionary
+                                                ResidentDetails.response = re
+                                                
+                                                print(re)
+                                                
+                                                DispatchQueue.main.async( execute: {
+                                                    
+                                                    //let beaconsData = NSKeyedArchiver.archivedData(withRootObject: re)
+                                                    
+                                                    //UserDefaults.standard.set(beaconsData, forKey: "Residents_List")
+                                                    
+                                                    let nvc = self.storyboard?.instantiateViewController(withIdentifier: "ResidentSelectTestViewController") as! ResidentSelectTestViewController
+                                                    Times.Left_Time.removeAll()
+                                                    let transition = CATransition()
+                                                    transition.duration = 0.3
+                                                    transition.type = kCATransitionPush
+                                                    transition.subtype = kCATransitionFromRight
+                                                    self.view.window!.layer.add(transition, forKey: kCATransition)
+                                                    
+                                                    let startDate = Date()
+                
+                                                    
+                                                    Times.Constant_Start_Time = startDate
+                                                    do {
+                                                        self.audioPlayer = try! AVAudioPlayer.init(contentsOf: self.roomUrl!)
+                                                        self.audioPlayer.prepareToPlay()
+                                                        
+                                                    }
+                                                    
+                                                    self.audioPlayer.play()
+                                                    AudioServicesPlayAlertSound(kSystemSoundID_Vibrate)
+                                                    
+                                                    self .present(nvc, animated: false, completion: {
+                                                        UserDefaults.standard.set("", forKey: "Came From")
+                                                    })// completion of self.present
+                                                    
+                                                })
+                                            }
+                                        }
+                                        task.resume()
+                                        
+                                    }
+                                })
+                                task.resume()
+                                timer?.invalidate()
+                                
+                                
+                            }else{
+                                
+                                locationManager.stopRangingBeacons(in: region)
+                                locationManager.stopMonitoring(for: region)
+
+                                Times.Previous_End_Time.removeAll()
+                                
+                                UserDefaults.standard.set([responseBeacon.value(forKey: "_id")], forKey: "PreviousBeaconArray")
+                                
+                                popup.dismiss(animated: true, completion: {
+                                    UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
+                                    self.timer?.invalidate()
+                                })// comletion of popup
+                                
+                                let url:NSURL = NSURL(string: "\(serviceConstants.url)\((UserDefaults.standard.value(forKey: "OrganizationID")!))/api/beacons/\(responseBeacon.value(forKey: "_id")!)")!
+                                
+                                let session = URLSession.shared
+                                let request = NSMutableURLRequest (url: url as URL)
+                                request.httpMethod = "Get"
+                                
+                                request.setValue(UserDefaults.standard.value(forKey: "authorization_Token") as? String, forHTTPHeaderField: serviceConstants.authorization)
+                                
+                                let task = session.dataTask(with: request as URLRequest){ (data,response,error)in
+                                    if let data = data {
+                                        
+                                        let re = try! JSONSerialization.jsonObject(with: data, options: []) as! NSDictionary
+                                        ResidentDetails.response = re
+                                        
+                                        print(re)
+                                        
+                                        DispatchQueue.main.async( execute: {
+                                            
+                                            //let beaconsData = NSKeyedArchiver.archivedData(withRootObject: re)
+                                            
+                                            //UserDefaults.standard.set(beaconsData, forKey: "Residents_List")
+                                            
+                                            let nvc = self.storyboard?.instantiateViewController(withIdentifier: "ResidentSelectTestViewController") as! ResidentSelectTestViewController
+                                            
+                                            let transition = CATransition()
+                                            transition.duration = 0.3
+                                            transition.type = kCATransitionPush
+                                            transition.subtype = kCATransitionFromRight
+                                            self.view.window!.layer.add(transition, forKey: kCATransition)
+                                            
+                                            let startDate = Date()
+        
+                                            
+                                            Times.Constant_Start_Time = startDate
+                                            do {
+                                                self.audioPlayer = try! AVAudioPlayer.init(contentsOf: self.roomUrl!)
+                                                self.audioPlayer.prepareToPlay()
+                                                
+                                            }
+                                            
+                                            self.audioPlayer.play()
+                                            AudioServicesPlayAlertSound(kSystemSoundID_Vibrate)
+                                            
+                                            self .present(nvc, animated: false, completion: {
+                                                UserDefaults.standard.set("", forKey: "Came From")
+                                            })// completion of self.present
+                                            
+                                        })
+                                    }
+                                }
+                                task.resume()
+                            }
+                        }
                 }
                 
             }else{
-                if closeBeacon.major.intValue == maj {
-                    rssiArray.append(closeBeacon.rssi)
-                    if rssiArray.count == 1 {
-                        let sumedrssi = rssiArray.reduce(0, +)
-                        let processedrssi = sumedrssi/1
-                        let base = Double(10)
-                        let power = Double(-59-(processedrssi))/Double(10*2)
-                        let dis = pow(Double(base), power)
-                        print("\(closeBeacon.major.intValue)")
-                        print("\(closeBeacon.rssi)")
-                        print("accuracy \(closeBeacon.accuracy)")
-                        print(dis)
-                        rssiArray.removeAll()
-                        //if closeBeacon.accuracy <= 3.0 {
-                        if dis <= 3{
-                            print("After")
+                print("final \(finalRSSI)")
+                let base = Double(10)
+                let power = Double(Constants.hallwayRSSI-(finalRSSI))/Double(10*2)
+                let dis = pow(Double(base), power)
+                print(dis)
+
+                       if dis <= Constants.hallwayRange {
+                            let beaconsData = UserDefaults.standard.object(forKey: "Beacons_List") as? NSData
+                            
+                            if let beaconsData = beaconsData {
+                                beaconsArray = (NSKeyedUnarchiver.unarchiveObject(with: beaconsData as Data) as? NSArray)!
+                            }
+                            var otherBeacon = String()
+                            for i in 0..<beaconsArray.count {
+                                
+                                let aaaaaaa = beaconsArray[i] as! NSDictionary
+                                
+                                let beaconMajor = Int(dic?.value(forKey: "major") as! String)
+                                
+                                let beaconMinor = Int(dic?.value(forKey: "minor") as! String)
+
+                                let majorStr = aaaaaaa.value(forKey: "major") as! String
+                                
+                                let major = Int(majorStr)
+                                
+                                let minorStr = aaaaaaa.value(forKey: "minor") as! String
+                                
+                                let minor = Int(minorStr)
+                                
+                                
+                                if major == beaconMajor && minor == beaconMinor{
+                                    print("minor")
+                                    otherBeacon = aaaaaaa.value(forKey: "type") as! String
+                                }
+                            }
+                            
+                            if otherBeacon == "hallway" {
+
                             UserDefaults.standard.set("Center", forKey: "PlaceOfAlert")
                             let msg = "Are you finished with your visit or are you continuing care?"
                             let attString = NSMutableAttributedString(string: msg)
                             
                             popup = PopupDialog(title: "", message: attString,  buttonAlignment: .vertical, transitionStyle: .zoomIn, gestureDismissal: false, completion: {
-                                
-                            })
-
-                            let pauseButton = CancelButton(title: "Pause", action: {
-                                
-                                UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
-
-                                let namesArray : [String] = UserDefaults.standard.value(forKey: "NamesArray") as! [String]
-                                
-                                let selectedArray : [String] = UserDefaults.standard.value(forKey: "SelectedArray") as! [String]
-                                if namesArray.count == 0 && selectedArray.count == 0 {
-                                        let RSVC = self.storyboard?.instantiateViewController(withIdentifier: "ResidentSelectTestViewController") as! ResidentSelectTestViewController
-                                        self.locationManager.stopMonitoring(for: region)
-                                        self.locationManager.stopRangingBeacons(in: region)
-                                        RSVC.alertForPause = true
-                                        self.present(RSVC, animated: true, completion: {
-                                            UserDefaults.standard.set([], forKey: "NamesArray")
-                                            UserDefaults.standard.set([], forKey: "SelectedArray")
-                                            UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
-                                            UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-                                            
-                                            
-                                            
-                                        })
-
-                                }else{
-                                    let nvc = self.storyboard?.instantiateViewController(withIdentifier: "CareSelectViewController") as! CareSelectViewController
-                                    self.locationManager.stopRangingBeacons(in: region)
-                                    self.locationManager.stopMonitoring(for: region)
-                                    nvc.alertForPause = true
-                                    self.present(nvc, animated: true, completion: {
-                                        UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-                                        
-                                    })
-                                    
-                                }
-                                
                             })
                             
-                            let continueButton = CancelButton(title: "Continue", action: {
-                                
-                                UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
-
-                                let namesArray : [String] = UserDefaults.standard.value(forKey: "NamesArray") as! [String]
-                                
-                                let selectedArray : [String] = UserDefaults.standard.value(forKey: "SelectedArray") as! [String]
-                                if namesArray.count == 0 && selectedArray.count == 0 {
+                            print("Dash After")
+                                let pauseButton = CancelButton(title: "Pause") {
+                                    UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
+                                    self.timer?.invalidate()
+                                    let RSVC = self.storyboard?.instantiateViewController(withIdentifier: "ResidentSelectTestViewController") as! ResidentSelectTestViewController
+                                    RSVC.alertForPause = true
+                                    
+                                    self.locationManager.stopMonitoring(for: region)
+                                    self.locationManager.stopRangingBeacons(in: region)
+                                    RSVC.alertForPause = true
+                                    let transition = CATransition()
+                                    transition.duration = 0.3
+                                    transition.type = kCATransitionPush
+                                    transition.subtype = kCATransitionFromLeft
+                                    self.view.window!.layer.add(transition, forKey: kCATransition)
+                                    
+                                    self.present(RSVC, animated: false, completion: {
+                                        UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
+                                        UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
+                                    })
+                                    
+                                    
+                                }
+                                let continueButton = CancelButton(title: "Continue") {
+                                    
+                                    self.timer?.invalidate()
+                                    UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
                                     let RSVC = self.storyboard?.instantiateViewController(withIdentifier: "ResidentSelectTestViewController") as! ResidentSelectTestViewController
                                     self.locationManager.stopMonitoring(for: region)
                                     self.locationManager.stopRangingBeacons(in: region)
                                     RSVC.alertForContinue = true
-                                    self.present(RSVC, animated: true, completion: {
-                                        UserDefaults.standard.set([], forKey: "NamesArray")
-                                        UserDefaults.standard.set([], forKey: "SelectedArray")
+                                    let transition = CATransition()
+                                    transition.duration = 0.3
+                                    transition.type = kCATransitionPush
+                                    transition.subtype = kCATransitionFromLeft
+                                    self.view.window!.layer.add(transition, forKey: kCATransition)
+                                    self.present(RSVC, animated: false, completion: {
                                         UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
                                         UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-                                        
-                                        
-                                        
-                                    })
-                                    
-                                }else{
-                                    let nvc = self.storyboard?.instantiateViewController(withIdentifier: "CareSelectViewController") as! CareSelectViewController
-                                    self.locationManager.stopRangingBeacons(in: region)
-                                    self.locationManager.stopMonitoring(for: region)
-                                    nvc.alertForContinue = true
-                                    self.present(nvc, animated: true, completion: {
-                                        UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-                                        
                                     })
                                     
                                 }
-
-                            })
-                            
-                            let completeButton = CancelButton(title: "Complete", action: {
-                                
-                                UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
-
-                                let namesArray : [String] = UserDefaults.standard.value(forKey: "NamesArray") as! [String]
-                                
-                                let selectedArray : [String] = UserDefaults.standard.value(forKey: "SelectedArray") as! [String]
-                                if namesArray.count == 0 && selectedArray.count == 0 {
+                                let completeButton = CancelButton(title: "Complete") {
+                                    
+                                    UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
+                                    
+                                    self.timer?.invalidate()
+                                    
                                     let RSVC = self.storyboard?.instantiateViewController(withIdentifier: "ResidentSelectTestViewController") as! ResidentSelectTestViewController
                                     self.locationManager.stopMonitoring(for: region)
                                     self.locationManager.stopRangingBeacons(in: region)
+                                    
                                     RSVC.alertForComplete = true
-                                    self.present(RSVC, animated: true, completion: {
-                                        UserDefaults.standard.set([], forKey: "NamesArray")
-                                        UserDefaults.standard.set([], forKey: "SelectedArray")
+                                    let transition = CATransition()
+                                    transition.duration = 0.3
+                                    transition.type = kCATransitionPush
+                                    transition.subtype = kCATransitionFromRight
+                                    self.view.window!.layer.add(transition, forKey: kCATransition)
+                                    
+                                    self.present(RSVC, animated: false, completion: {
                                         UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
                                         UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-                                        
-                                        
-                                        
-                                    })
-                                    
-                                }else{
-                                    let nvc = self.storyboard?.instantiateViewController(withIdentifier: "CareSelectViewController") as! CareSelectViewController
-                                    self.locationManager.stopRangingBeacons(in: region)
-                                    self.locationManager.stopMonitoring(for: region)
-                                    nvc.alertForComplete = true
-                                    self.present(nvc, animated: true, completion: {
-                                        UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-                                        
                                     })
                                     
                                 }
+                                let deleteButton = CancelButton(title: "Done", action: {
+                                    let user_Id = UserDefaults.standard.value(forKey: "user_Id") as! String
+                                    
+                                    self.timer?.invalidate()
+                                    
+                                    let residentRoom = ResidentDetails.response.value(forKey: "_room") as! NSDictionary
+                                    
+                                    let roomId = residentRoom.value(forKey: "_id") as! String
+                                    
+                                    
+                                    var startedTime = Date()
+                                    
+                                    if Times.Previous_End_Time.count > 0 {
+                                        startedTime = Times.Previous_End_Time[0]
+                                    }else{
+                                        startedTime = Times.Constant_Start_Time
+                                    }
+                                    
+                                    var param = [String:Any]()
+                                    param = ["user_id": user_Id,
+                                             "room_id": roomId,
+                                             "resident_id": "",
+                                             "care_id": "",
+                                             "care_value": "",
+                                             "care_notes": "",
+                                             "care_type": "UnTrack",
+                                             "care_status": "Closed",
+                                             "time_track": ["start_time":"\(startedTime)",
+                                                "end_time":"\(Date())"]
+                                        
+                                    ]
+                                    
+                                    let parameters = [param]
+                                    
+                                    //create the url with URL
+                                    let url = URL(string: "\(serviceConstants.url)\((UserDefaults.standard.value(forKey: "OrganizationID")!))/api/\(serviceConstants.trackCares)")! //change the url
+                                    
+                                    //create the session object
+                                    let session = URLSession.shared
+                                    
+                                    //now create the URLRequest object using the url object
+                                    var request = URLRequest(url: url)
+                                    request.httpMethod = "POST" //set http method as POST
+                                    
+                                    do {
+                                        request.httpBody = try JSONSerialization.data(withJSONObject: parameters, options: .prettyPrinted) // pass dictionary to nsdata object and set it as request body
+                                    } catch let error {
+                                        print(error.localizedDescription)
+                                    }
+                                    
+                                    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+                                    request.setValue(UserDefaults.standard.value(forKey: "authorization_Token") as? String, forHTTPHeaderField: serviceConstants.authorization)
+                                    
+                                    //create dataTask using the session object to send data to the server
+                                    let task = session.dataTask(with: request as URLRequest, completionHandler: { data, response, error in
+                                        
+                                        guard error == nil else {
+                                            return
+                                        }
+                                        
+                                        guard let data = data else {
+                                            return
+                                        }
+                                        
+                                        do {
+                                            //create json object from data
+                                            _ = try! JSONSerialization.jsonObject(with: data, options: [])
+                                            
+                                            DispatchQueue.main.async( execute: {
+                                                
+                                                let nvc = self.storyboard?.instantiateViewController(withIdentifier: "DashBoardViewController") as! DashBoardViewController
+                                                self.locationManager.stopMonitoring(for: self.region)
+                                                self.locationManager.stopRangingBeacons(in: self.region)
+                                                let transition = CATransition()
+                                                transition.duration = 0.3
+                                                transition.timingFunction = CAMediaTimingFunction(name: kCAMediaTimingFunctionEaseInEaseOut)
+                                                transition.type = kCATransitionMoveIn
+                                                transition.subtype = kCATransitionFromLeft
+                                                self.view.window!.layer.add(transition, forKey: kCATransition)
+                                                
+                                                self.present(nvc, animated: false, completion: {
+                                                    UserDefaults.standard.set("", forKey: "Came From")
+                                                    UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
 
-                            })
-                            
-                            let deleteButton = DestructiveButton(title: "Delete", action: {
-                                
-                                UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
-
-                            })
+                                                })
+                                                
+                                                
+                                            })
+                                            
+                                        }
+                                    })
+                                    task.resume()
+                                })
                             popup.addButtons([pauseButton,continueButton,completeButton,deleteButton])
-
+                            
                             let hallwayBeaconArray : [Int] = UserDefaults.standard.value(forKey: "HallwayBeaconArray") as! [Int]
-                            if hallwayBeaconArray.count == 0 {
-                                let namesArray : [String] = UserDefaults.standard.value(forKey: "NamesArray") as! [String]
-                                let selectedArray : [String] = UserDefaults.standard.value(forKey: "SelectedArray") as! [String]
-                                if namesArray.count >= 1 && selectedArray.count == 0{
-                                    let DVC = storyboard?.instantiateViewController(withIdentifier: "DashBoardViewController") as! DashBoardViewController
-                                    UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
-                                    UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
-                                    UserDefaults.standard.set([], forKey: "NamesArray")
-                                    UserDefaults.standard.set([], forKey: "SelectedArray")
-                                    locationManager.stopRangingBeacons(in: region)
-                                    locationManager.stopMonitoring(for: region)
-                                    
-                                    self.present(DVC, animated: true, completion: nil)
-                                }else{
-                                    
+                            print("hallway Beacon Count\(hallwayBeaconArray.count)")
+                                if hallwayBeaconArray.count == 0{
+                                    if Times.Previous_End_Time.count > 0{
+                                        let timeGap = Date().timeIntervalSince(Times.Previous_End_Time[0])
+                                        if timeGap > 15 {
+                                            Times.Leaving_Time = Date()
+                                            Times.Left_Time = [Date()]
+                                            UserDefaults.standard.set("Center", forKey: "PlaceOfAlert")
+                                            do {
+                                                self.audioPlayer = try! AVAudioPlayer.init(contentsOf: self.hallwayUrl!)
+                                                self.audioPlayer.prepareToPlay()
+                                                
+                                            }
+                                            
+                                            self.audioPlayer.play()
+                                            AudioServicesPlayAlertSound(kSystemSoundID_Vibrate)
+                                            
+                                            self.present(popup, animated: true, completion: {
+                                                
+                                                UIApplication.shared.isIdleTimerDisabled = true
 
-                                    self.present(popup, animated: true, completion: {
-                                        UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
+                                                UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
+                                                
+                                                UserDefaults.standard.set([Int(dic?.value(forKey: "major") as! String)], forKey: "HallwayBeaconArray")
+                                                
+                                                UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
+                                                UserDefaults.standard.set("", forKey: "Came From")
 
-                                        UserDefaults.standard.set([closeBeacon.major.intValue], forKey: "HallwayBeaconArray")
-                                        UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
-                                    })
+                                                self.timer = Timer.scheduledTimer(timeInterval: 300, target: self, selector: #selector(self.dismissAlert), userInfo: nil, repeats: true)
+ 
+                                            })
+                                            
+                                        }else{
+                                            let DVC = storyboard?.instantiateViewController(withIdentifier: "DashBoardViewController") as! DashBoardViewController
+                                            UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
+                                            UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
+                                            locationManager.stopRangingBeacons(in: region)
+                                            locationManager.stopMonitoring(for: region)
+                                            let transition = CATransition()
+                                            transition.duration = 0.3
+                                            transition.type = kCATransitionPush
+                                            transition.subtype = kCATransitionFromLeft
+                                            view.window!.layer.add(transition, forKey: kCATransition)
+                                            do {
+                                                self.audioPlayer = try! AVAudioPlayer.init(contentsOf: self.hallwayUrl!)
+                                                self.audioPlayer.prepareToPlay()
+                                                
+                                            }
+                                            
+                                            self.audioPlayer.play()
+                                            AudioServicesPlayAlertSound(kSystemSoundID_Vibrate)
+                                            
+                                            self.present(DVC, animated: false, completion: nil)
+                                            
+                                        }
+                                        
+                                    }else{
+                                        let timeGap = Date().timeIntervalSince(Times.Constant_Start_Time)
+                                        if timeGap > 15 {
+                                            Times.Leaving_Time = Date()
+                                            Times.Left_Time = [Date()]
+
+                                            UserDefaults.standard.set("Center", forKey: "PlaceOfAlert")
+                                            do {
+                                                self.audioPlayer = try! AVAudioPlayer.init(contentsOf: self.hallwayUrl!)
+                                                self.audioPlayer.prepareToPlay()
+                                                
+                                            }
+                                            
+                                            self.audioPlayer.play()
+                                            AudioServicesPlayAlertSound(kSystemSoundID_Vibrate)
+                                            
+                                            self.present(popup, animated: true, completion: {
+                                                
+                                                UIApplication.shared.isIdleTimerDisabled = true
+
+                                                UserDefaults.standard.set("Top", forKey: "PlaceOfAlert")
+                                                
+                                                UserDefaults.standard.set([Int(dic?.value(forKey: "major") as! String)], forKey: "HallwayBeaconArray")
+                                                
+                                                UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
+                                                UserDefaults.standard.set("", forKey: "Came From")
+
+                                                self.timer = Timer.scheduledTimer(timeInterval: 300, target: self, selector: #selector(self.dismissAlert), userInfo: nil, repeats: true)
+
+                                            })
+                                            
+                                        }else {
+                                            let DVC = storyboard?.instantiateViewController(withIdentifier: "DashBoardViewController") as! DashBoardViewController
+                                            UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
+                                            UserDefaults.standard.set([], forKey: "PreviousBeaconArray")
+                                            locationManager.stopRangingBeacons(in: region)
+                                            locationManager.stopMonitoring(for: region)
+                                            let transition = CATransition()
+                                            transition.duration = 0.3
+                                            transition.type = kCATransitionPush
+                                            transition.subtype = kCATransitionFromLeft
+                                            view.window!.layer.add(transition, forKey: kCATransition)
+                                            do {
+                                                self.audioPlayer = try! AVAudioPlayer.init(contentsOf: self.hallwayUrl!)
+                                                self.audioPlayer.prepareToPlay()
+                                                
+                                            }
+                                            
+                                            self.audioPlayer.play()
+                                            AudioServicesPlayAlertSound(kSystemSoundID_Vibrate)
+                                            
+                                            self.present(DVC, animated: false, completion: nil)
+                                            
+                                        }
+                                    }
                                 }
-                            }
                         }
                     }
                 }
+                Constants.rssiArray.removeObject(at: 0)
+
             }
         }
+    }
+    func dismissAlert(){
+        
+        let user_Id = UserDefaults.standard.value(forKey: "user_Id") as! String
+        
+        let residentRoom = ResidentDetails.response.value(forKey: "_room") as! NSDictionary
+        
+        let roomId = residentRoom.value(forKey: "_id") as! String
+        
+        
+        var startedTime = Date()
+        
+        if Times.Previous_End_Time.count > 0 {
+            startedTime = Times.Previous_End_Time[0]
+        }else{
+            startedTime = Times.Constant_Start_Time
+        }
+        let previousBeaconArray : [String] = UserDefaults.standard.value(forKey: "PreviousBeaconArray") as! [String]
+        var endTime = Date()
+        
+        if previousBeaconArray.count == 0 {
+            endTime = Times.Leaving_Time
+        }
+        var param = [String:Any]()
+        param = ["user_id": user_Id,
+                 "room_id": roomId,
+                 "resident_id": "",
+                 "care_id": "",
+                 "care_value": "",
+                 "care_notes": "",
+                 "care_type": "UnTrack",
+                 "care_status": "Closed",
+                 "time_track": ["start_time":"\(startedTime)",
+                    "end_time":"\(endTime)"]
+            
+        ]
+        
+        let parameters = [param]
+        
+        //create the url with URL
+        let url = URL(string: "\(serviceConstants.url)\((UserDefaults.standard.value(forKey: "OrganizationID")!))/api/\(serviceConstants.trackCares)")! //change the url
+        
+        //create the session object
+        let session = URLSession.shared
+        
+        //now create the URLRequest object using the url object
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST" //set http method as POST
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: parameters, options: .prettyPrinted) // pass dictionary to nsdata object and set it as request body
+        } catch let error {
+            print(error.localizedDescription)
+        }
+        
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(UserDefaults.standard.value(forKey: "authorization_Token") as? String, forHTTPHeaderField: serviceConstants.authorization)
+        
+        //create dataTask using the session object to send data to the server
+        let task = session.dataTask(with: request as URLRequest, completionHandler: { data, response, error in
+            
+            guard error == nil else {
+                return
+            }
+            
+            guard let data = data else {
+                return
+            }
+            
+            do {
+                //create json object from data
+                _ = try! JSONSerialization.jsonObject(with: data, options: [])
+                
+                DispatchQueue.main.async( execute: {
+                    
+                    let nvc = self.storyboard?.instantiateViewController(withIdentifier: "DashBoardViewController") as! DashBoardViewController
+                    self.locationManager.stopMonitoring(for: self.region)
+                    self.locationManager.stopRangingBeacons(in: self.region)
+                    let transition = CATransition()
+                    transition.duration = 0.3
+                    transition.timingFunction = CAMediaTimingFunction(name: kCAMediaTimingFunctionEaseInEaseOut)
+                    transition.type = kCATransitionMoveIn
+                    transition.subtype = kCATransitionFromLeft
+                    self.view.window!.layer.add(transition, forKey: kCATransition)
+                    UIApplication.shared.isIdleTimerDisabled = false
+
+                    self.present(nvc, animated: false, completion: {
+                        UserDefaults.standard.set("", forKey: "Came From")
+                        UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
+                        
+                        
+                    })
+                    
+                    
+                })
+                
+            }
+        })
+        task.resume()
+        timer?.invalidate()
+        self.popup.dismiss(animated: true, completion: {
+            UserDefaults.standard.set([], forKey: "HallwayBeaconArray")
+            
+        })
+        
     }
 
 }

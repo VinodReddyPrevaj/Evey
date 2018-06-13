@@ -22,7 +22,7 @@ class ViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         let context:LAContext = LAContext();
         var error:NSError?
-        var success:Bool;
+        var _:Bool;
         let reason:String = "Please authenticate using TouchID.";
         
         if (context.canEvaluatePolicy(LAPolicy.deviceOwnerAuthenticationWithBiometrics, error: &error))
